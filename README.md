@@ -68,7 +68,7 @@ from mootdx.quotes import Quotes
 | P2 | 批量财务基础信息 | 已支持 |
 | P2 | 公告检索 `mootdx.cninfo` | 已支持 |
 | P2 | 技术指标 `mootdx.indicators`，首批 MACD/KDJ/RSI/BOLL | 已支持 |
-| P2 | 离线数据写入 / 同步到本地通达信 `vipdoc` | 已支持 |
+| P2 | 离线数据写入 / 追加到本地通达信 `vipdoc` | 已支持 |
 
 ### 后续路线图
 
