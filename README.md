@@ -57,6 +57,7 @@ from mootdx.quotes import Quotes
 | P1 | 市场统计 | `market_stat()` | 已支持 | 基于通达信统计指数返回涨跌家数、涨跌停家数等。 |
 | P1 | 个股基础信息 | `symbol_info()` | 已支持 | 返回价格、市值、估值、资金等基础字段。 |
 | P1 | 涨跌停价 | `price_limits()` | 已支持 | 优先使用行情源返回结果，缺失时按 A 股基础规则兜底计算。 |
+| P1 | 短线指标 Helper | `shortline_indicators()` | 已支持 | 汇总行情快照、盘口封单、竞价比值和统计资源字段，便于短线策略筛选。 |
 
 ### P2 数据补全能力
 
@@ -190,6 +191,9 @@ client.board_ranking(type='HY', sort_by='change', top=20)
 client.market_stat()
 client.symbol_info('000001')
 client.price_limits('000001')
+
+# 短线指标 Helper
+client.shortline_indicators(['000001', '600036'])
 
 # P2 数据补全
 client.minutes_recent('000001', days=5)

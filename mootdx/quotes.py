@@ -260,6 +260,13 @@ class StdQuotes(BaseQuotes):
 
         return data[[column for column in columns if column in data.columns]]
 
+    def shortline_indicators(self, symbols, stats=None, batch_size=80, **kwargs):
+        """Calculate short-line trading helper indicators."""
+
+        from mootdx.shortline import shortline_indicators
+
+        return shortline_indicators(self, symbols=symbols, stats=stats, batch_size=batch_size, **kwargs)
+
     def _enhanced_adapter(self):
         adapter = getattr(self, 'enhanced', None)
         if adapter is None:
