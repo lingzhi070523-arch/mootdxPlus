@@ -58,6 +58,9 @@ from mootdx.quotes import Quotes
 | P1 | 个股基础信息 | `symbol_info()` | 已支持 | 返回价格、市值、估值、资金等基础字段。 |
 | P1 | 涨跌停价 | `price_limits()` | 已支持 | 优先使用行情源返回结果，缺失时按 A 股基础规则兜底计算。 |
 | P1 | 短线指标 Helper | `shortline_indicators()` | 已支持 | 汇总行情快照、盘口封单、竞价比值和统计资源字段，便于短线策略筛选。 |
+| P1 | 结构化 F10 | `f10_sections()` / `f10_profile()` / `f10_topics()` / `f10_financials()` | 已支持 | 在保留原 F10 文本内容的基础上，统一返回带栏目与来源信息的 DataFrame。 |
+| P1 | 交易日历 | `TradingCalendar` | 已支持 | 支持交易日列表、交易日判断、前一/后一交易日查询。 |
+| P1 | JSON / CSV 序列化 | `mootdx.serialization` | 已支持 | DataFrame 可稳定转换为 records、JSON、CSV，适合脚本和 API 调用。 |
 
 ### P2 数据补全能力
 
@@ -67,7 +70,7 @@ from mootdx.quotes import Quotes
 | P2 | GBBQ 股本变迁、指定日期股本、换手率辅助计算 | 已支持 |
 | P2 | 批量财务基础信息 | 已支持 |
 | P2 | 公告检索 `mootdx.cninfo` | 已支持 |
-| P2 | 技术指标 `mootdx.indicators`，首批 MACD/KDJ/RSI/BOLL | 已支持 |
+| P2 | 技术指标 `mootdx.indicators`，MACD/KDJ/RSI/BOLL/MA/EMA/ATR/DMI/WR/CCI/OBV/VR | 已支持 |
 | P2 | 离线数据写入 / 追加到本地通达信 `vipdoc` | 已支持 |
 
 ### 后续路线图
@@ -245,6 +248,36 @@ RSI(bars)
 BOLL(bars)
 
 compute_indicators(bars, ['MACD', 'KDJ', 'RSI', 'BOLL'])
+```
+
+### 结构化 F10、交易日历与序列化
+
+```python
+from mootdx.cache import TTLCache
+from mootdx.calendar import TradingCalendar
+from mootdx.serialization import to_json, to_records
+
+# F10 原始栏目仍可通过 F10/F10C 使用；以下接口返回结构化 DataFrame
+cache = TTLCache(default_ttl=300)
+client.f10_profile('000001', cache=cache)
+client.f10_topics('000001', cache=cache)
+client.f10_financials('000001', cache=cache)
+
+# 交易日历可复用现有交易日数据源，也可注入自定义 DataFrame
+calendar = TradingCalendar(cache=TTLCache(default_ttl=86400))
+calendar.is_trading_day('2024-01-02')
+calendar.previous_trading_day('2024-01-04')
+
+# JSON/records 输出适合 HTTP API、MCP 或自动化脚本
+to_records(bars)
+to_json(bars)
+```
+
+### 命令行 JSON / CSV 输出
+
+```shell
+mootdx quotes --symbol 600036 --format json
+mootdx reader --symbol 600036 --action daily --format csv
 ```
 
 ### 通达信离线数据写入

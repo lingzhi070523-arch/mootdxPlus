@@ -767,6 +767,24 @@ class StdQuotes(BaseQuotes):
 
         return result
 
+    def f10_client(self, cache=None, ttl=300):
+        """Return a structured wrapper around the legacy F10 endpoints."""
+        from mootdx.f10 import F10Client
+
+        return F10Client(self, cache=cache, ttl=ttl)
+
+    def f10_sections(self, symbol='', names=None, cache=None, ttl=300):
+        return self.f10_client(cache=cache, ttl=ttl).sections(symbol, names=names)
+
+    def f10_profile(self, symbol='', cache=None, ttl=300):
+        return self.f10_client(cache=cache, ttl=ttl).profile(symbol)
+
+    def f10_topics(self, symbol='', cache=None, ttl=300):
+        return self.f10_client(cache=cache, ttl=ttl).topics(symbol)
+
+    def f10_financials(self, symbol='', cache=None, ttl=300):
+        return self.f10_client(cache=cache, ttl=ttl).financials(symbol)
+
     def xdxr(self, symbol='', **kwargs):
         """
         读取除权除息信息

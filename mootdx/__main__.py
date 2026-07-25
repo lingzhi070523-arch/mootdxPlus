@@ -5,6 +5,8 @@ from pathlib import Path
 
 from mootdx import __version__
 from mootdx.logger import logger
+from mootdx.serialization import to_csv
+from mootdx.serialization import to_json
 from mootdx.utils import get_config_path
 from mootdx.utils import to_file
 
@@ -25,13 +27,23 @@ def entry():
     ...
 
 
+def _echo_feed(feed, format_):
+    if format_ == 'json':
+        click.echo(to_json(feed))
+    elif format_ == 'csv':
+        click.echo(to_csv(feed), nl=False)
+    else:
+        click.echo(feed)
+
+
 @entry.command(help='读取股票在线行情数据.')
 @click.help_option('-h', '--help')
 @click.option('-o', '--output', default=None, help='输出文件, 支持CSV, HDF5, Excel等格式.')
 @click.option('-s', '--symbol', default='600000', help='股票代码.')
 @click.option('-a', '--action', default='bars', help='操作类型 (daily: 日线, minute: 一分钟线, fzline: 五分钟线).', )
 @click.option('-m', '--market', default='std', help='证券市场, 默认 std (std: 标准股票市场, ext: 扩展市场).')
-def quotes(symbol, action, market, output):
+@click.option('--format', 'format_', type=click.Choice(['table', 'json', 'csv']), default='table', show_default=True)
+def quotes(symbol, action, market, output, format_):
     from mootdx.quotes import Quotes
 
     client = Quotes.factory(market=market, multithread=True)
@@ -49,7 +61,7 @@ def quotes(symbol, action, market, output):
 
         feed = getattr(client, 'bars')(symbol=symbol, frequency=frequency)
         to_file(feed, output) if output else None
-        click.echo(feed)
+        _echo_feed(feed, format_)
     except Exception as e:
         raise e
 
@@ -61,7 +73,8 @@ def quotes(symbol, action, market, output):
 @click.option('-a', '--action', default='daily', help='操作类型 (daily: 日线, minute: 一分钟线, fzline: 五分钟线).')
 @click.option('-m', '--market', default='std', help='证券市场, 默认 std (std: 标准股票市场, ext: 扩展市场).')
 @click.option('-o', '--output', default=None, help='输出文件, 支持 CSV, HDF5, Excel 等格式.')
-def reader(symbol, action, market, tdxdir, output):
+@click.option('--format', 'format_', type=click.Choice(['table', 'json', 'csv']), default='table', show_default=True)
+def reader(symbol, action, market, tdxdir, output, format_):
     from mootdx.reader import Reader
 
     client = Reader.factory(market=market, tdxdir=tdxdir)
@@ -69,7 +82,7 @@ def reader(symbol, action, market, tdxdir, output):
     try:
         feed = getattr(client, action)(symbol=symbol)
         to_file(feed, output) if output else None
-        click.echo(feed)
+        _echo_feed(feed, format_)
     except Exception as e:
         raise e
 

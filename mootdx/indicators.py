@@ -28,6 +28,13 @@ def _round(values):
     return pd.Series(values).round(2)
 
 
+def _positive_integer(value, name):
+    value = int(value)
+    if value <= 0:
+        raise ValueError(f'{name} must be greater than zero')
+    return value
+
+
 @dataclass(frozen=True)
 class IndicatorSpec:
     name: str
@@ -79,6 +86,78 @@ def _boll(close, N=20, P=2):  # noqa: N803
     return _round(upper), _round(mid), _round(lower)
 
 
+def _ma(close, N=5):  # noqa: N803
+    return (_round(_sma(close, _positive_integer(N, 'N'))),)
+
+
+def _ema_indicator(close, N=5):  # noqa: N803
+    return (_round(_ema(close, _positive_integer(N, 'N'))),)
+
+
+def _atr(high, low, close, N=14):  # noqa: N803
+    high = _series(high)
+    low = _series(low)
+    previous_close = _series(close).shift(1)
+    true_range = pd.concat([high - low, (high - previous_close).abs(), (low - previous_close).abs()], axis=1).max(axis=1)
+    return (_round(true_range.rolling(_positive_integer(N, 'N'), min_periods=1).mean()),)
+
+
+def _dmi(high, low, close, N=14, M=6):  # noqa: N803
+    high = _series(high)
+    low = _series(low)
+    close = _series(close)
+    up_move = high.diff()
+    down_move = -low.diff()
+    plus_dm = up_move.where((up_move > down_move) & (up_move > 0), 0.0)
+    minus_dm = down_move.where((down_move > up_move) & (down_move > 0), 0.0)
+    previous_close = close.shift(1)
+    tr = pd.concat([high - low, (high - previous_close).abs(), (low - previous_close).abs()], axis=1).max(axis=1)
+    period = _positive_integer(N, 'N')
+    tr_sum = tr.rolling(period, min_periods=1).sum().replace(0, np.nan)
+    pdi = plus_dm.rolling(period, min_periods=1).sum() / tr_sum * 100
+    mdi = minus_dm.rolling(period, min_periods=1).sum() / tr_sum * 100
+    dx = ((pdi - mdi).abs() / (pdi + mdi).replace(0, np.nan) * 100).fillna(0)
+    smooth = _positive_integer(M, 'M')
+    adx = dx.rolling(smooth, min_periods=1).mean()
+    adxr = (adx + adx.shift(smooth)).div(2).fillna(adx)
+    return _round(pdi.fillna(0)), _round(mdi.fillna(0)), _round(adx), _round(adxr)
+
+
+def _wr(close, high, low, N=14):  # noqa: N803
+    high = _series(high)
+    low = _series(low)
+    close = _series(close)
+    period = _positive_integer(N, 'N')
+    highest = high.rolling(period, min_periods=1).max()
+    lowest = low.rolling(period, min_periods=1).min()
+    return (_round(((highest - close) / (highest - lowest).replace(0, np.nan) * 100).fillna(0)),)
+
+
+def _cci(close, high, low, N=14):  # noqa: N803
+    typical = (_series(high) + _series(low) + _series(close)) / 3
+    period = _positive_integer(N, 'N')
+    average = typical.rolling(period, min_periods=1).mean()
+    deviation = typical.rolling(period, min_periods=1).apply(lambda values: np.abs(values - values.mean()).mean(), raw=True)
+    return (_round(((typical - average) / (deviation * 0.015).replace(0, np.nan)).fillna(0)),)
+
+
+def _obv(close, vol):
+    direction = _series(close).diff().apply(lambda value: 1 if value > 0 else (-1 if value < 0 else 0))
+    return (_round((direction * _series(vol)).fillna(0).cumsum()),)
+
+
+def _vr(close, vol, N=26):  # noqa: N803
+    period = _positive_integer(N, 'N')
+    volume = _series(vol)
+    diff = _series(close).diff()
+    up = volume.where(diff > 0, 0.0)
+    down = volume.where(diff < 0, 0.0)
+    flat = volume.where(diff == 0, 0.0)
+    numerator = up.rolling(period, min_periods=1).sum() + flat.rolling(period, min_periods=1).sum() / 2
+    denominator = down.rolling(period, min_periods=1).sum() + flat.rolling(period, min_periods=1).sum() / 2
+    return (_round((numerator / denominator.replace(0, np.nan) * 100).fillna(100)),)
+
+
 _REGISTRY = {
     'MACD': IndicatorSpec(
         'MACD',
@@ -112,6 +191,21 @@ _REGISTRY = {
         'Bollinger bands.',
         _boll,
     ),
+    'MA': IndicatorSpec('MA', ('close',), ('MA',), {'N': 5}, 'Moving average.', _ma),
+    'EMA': IndicatorSpec('EMA', ('close',), ('EMA',), {'N': 5}, 'Exponential moving average.', _ema_indicator),
+    'ATR': IndicatorSpec('ATR', ('high', 'low', 'close'), ('ATR',), {'N': 14}, 'Average true range.', _atr),
+    'DMI': IndicatorSpec(
+        'DMI',
+        ('high', 'low', 'close'),
+        ('DMI_PDI', 'DMI_MDI', 'DMI_ADX', 'DMI_ADXR'),
+        {'N': 14, 'M': 6},
+        'Directional movement index.',
+        _dmi,
+    ),
+    'WR': IndicatorSpec('WR', ('close', 'high', 'low'), ('WR',), {'N': 14}, 'Williams %R.', _wr),
+    'CCI': IndicatorSpec('CCI', ('close', 'high', 'low'), ('CCI',), {'N': 14}, 'Commodity channel index.', _cci),
+    'OBV': IndicatorSpec('OBV', ('close', 'vol'), ('OBV',), {}, 'On-balance volume.', _obv),
+    'VR': IndicatorSpec('VR', ('close', 'vol'), ('VR',), {'N': 26}, 'Volume ratio.', _vr),
 }
 
 
@@ -174,3 +268,35 @@ def RSI(df, N=24):  # noqa: N802,N803
 
 def BOLL(df, N=20, P=2):  # noqa: N802,N803
     return compute_indicators(df, ['BOLL'], {'BOLL': {'N': N, 'P': P}})
+
+
+def MA(df, N=5):  # noqa: N802,N803
+    return compute_indicators(df, ['MA'], {'MA': {'N': N}})
+
+
+def EMA(df, N=5):  # noqa: N802,N803
+    return compute_indicators(df, ['EMA'], {'EMA': {'N': N}})
+
+
+def ATR(df, N=14):  # noqa: N802,N803
+    return compute_indicators(df, ['ATR'], {'ATR': {'N': N}})
+
+
+def DMI(df, N=14, M=6):  # noqa: N802,N803
+    return compute_indicators(df, ['DMI'], {'DMI': {'N': N, 'M': M}})
+
+
+def WR(df, N=14):  # noqa: N802,N803
+    return compute_indicators(df, ['WR'], {'WR': {'N': N}})
+
+
+def CCI(df, N=14):  # noqa: N802,N803
+    return compute_indicators(df, ['CCI'], {'CCI': {'N': N}})
+
+
+def OBV(df):  # noqa: N802,N803
+    return compute_indicators(df, ['OBV'])
+
+
+def VR(df, N=26):  # noqa: N802,N803
+    return compute_indicators(df, ['VR'], {'VR': {'N': N}})
