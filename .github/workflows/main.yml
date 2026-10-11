@@ -1,24 +1,94 @@
-
 name: Test Stock Data
-
 on:
   workflow_dispatch:
-
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
       - name: Install mootdxPlus
         run: pip install "git+https://github.com/BiomancerGame/mootdxPlus.git"
-
-      - name: Test stock daily bars
+      - name: Test server connectivity and stock bars
         run: |
-          python -c "from mootdx.quotes import Quotes; c = Quotes.factory(market='std', multithread=True, heartbeat=True); d = c.bars_all(symbol='600036', frequency=9); print('数据条数:', len(d) if d is not None else 0); print(d)"
+          python - <<'PY'
+          import socket
+          import json
+          from pathlib import Path
+          servers = [
+              ("110.41.147.114", 7709),
+              ("8.129.13.54", 7709),
+              ("120.24.149.49", 7709),
+              ("47.113.94.204", 7709),
+              ("124.70.176.52", 7709),
+              ("47.100.236.28", 7709),
+              ("101.133.214.242", 7709),
+              ("121.36.54.217", 7709),
+          ]
+          reachable = []
+          for ip, port in servers:
+              try:
+                  with socket.create_connection(
+                      (ip, port), timeout=3
+                  ):
+                      print(f"TCP连接成功: {ip}:{port}")
+                      reachable.append((ip, port))
+              except Exception as e:
+                  print(f"TCP连接失败: {ip}:{port} - {e}")
+          if not reachable:
+              raise SystemExit(
+                  "诊断结果：候选服务器的 TCP 端口均无法连接。"
+              )
+          ip, port = reachable[0]
+          print(f"尝试行情协议连接: {ip}:{port}")
+          config = {
+              "SERVER": {
+                  "HQ": [["manual", ip, port]],
+                  "EX": [],
+                  "GP": []
+              },
+              "BESTIP": {
+                  "HQ": [ip, port],
+                  "EX": "",
+                  "GP": ""
+              },
+              "TDXDIR": ""
+          }
+          config_path = (
+              Path.home() / ".mootdx" / "config.json"
+          )
+          config_path.parent.mkdir(
+              parents=True, exist_ok=True
+          )
+          config_path.write_text(
+              json.dumps(config),
+              encoding="utf-8"
+          )
+          from mootdx.quotes import Quotes
+          client = Quotes.factory(
+              market="std",
+              server=(ip, port),
+              bestip=False,
+              timeout=5,
+              heartbeat=False,
+              auto_retry=False,
+              raise_exception=True
+          )
+          try:
+              data = client.bars(
+                  symbol="600036",
+                  frequency=9,
+                  start=0,
+                  offset=5
+              )
+              print("K线请求返回。")
+              print("数据条数:", len(data) if data is not None else 0)
+              print(data)
+          finally:
+              client.close()
+          PY
