@@ -1,0 +1,46 @@
+
+name: Yousi Data Source Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - yousi-data-test
+    paths:
+      - "tests_yousi/**"
+      - ".github/workflows/data-test.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  data-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+
+      - name: Run data source tests
+        run: |
+          python tests_yousi/test_data.py
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: yousi-data-test-report
+          path: test_reports/
+          if-no-files-found: warn
+          retention-days: 7
