@@ -19,7 +19,6 @@ jobs:
     timeout-minutes: 22
     env:
       PYTHONUNBUFFERED: '1'
-      MOOTDX_HOME: ${{ runner.temp }}/yousi-mootdx
     steps:
       - name: Checkout the triggering test commit
         uses: actions/checkout@v4
