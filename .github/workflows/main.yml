@@ -1,34 +1,52 @@
 name: Test Stock Data
+
 on:
-  workflow_dispatch:
+workflow_dispatch:
+
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 1
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install mootdxPlus
-        run: pip install "git+https://github.com/BiomancerGame/mootdxPlus.git"
-      - name: Test TDX protocol
-        run: |
-          python - <<'PY'
-          from mootdx.quotes import Quotes
-          client = Quotes.factory(
-              market="std",
-              server=("110.41.147.114", 7709),
-              bestip=False,
-              timeout=5,
-              heartbeat=False,
-              auto_retry=False,
-              raise_exception=True
+test:
+runs-on: ubuntu-latest
+timeout-minutes: 2
+
+steps:
+  - name: Checkout repository
+    uses: actions/checkout@v4
+  - name: Set up Python
+    uses: actions/setup-python@v5
+    with:
+      python-version: "3.11"
+  - name: Install mootdxPlus
+    run: pip install "git+https://github.com/BiomancerGame/mootdxPlus.git"
+  - name: Test Stock Daily Bars
+    run: |
+      python - <<'PY'
+      from mootdx.quotes import Quotes
+      print("正在初始化行情客户端...")
+      client = Quotes.factory(
+          market="std",
+          server=("110.41.147.114", 7709),
+          bestip=False,
+          timeout=5,
+          heartbeat=False,
+          auto_retry=False,
+          raise_exception=True
+      )
+      try:
+          print("开始获取招商银行（600036）日K线...")
+          data = client.bars(
+              symbol="600036",
+              frequency=9,
+              start=0,
+              offset=10
           )
-          try:
-              print("开始测试通达信协议")
-              result = client.stock_count(market=0)
-              print("协议请求成功，股票数量:", result)
-          finally:
-              client.close()
-          PY
+          if data is None:
+              print("测试失败：没有返回数据")
+          else:
+              print("测试成功：请求已返回")
+              print("返回条数：", len(data))
+              print("字段：", list(data.columns))
+              print("最近数据：")
+              print(data.tail(5).to_string(index=False))
+      finally:
+          client.close()
+      PY
