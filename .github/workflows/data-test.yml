@@ -1,0 +1,58 @@
+name: 酉巳无悔 - 数据源实测
+
+# The workflow lives only on the test branch. workflow_dispatch requires the
+# workflow on the default branch, so use branch-scoped push instead.
+on:
+  push:
+    branches: [yousi-data-test]
+    paths:
+      - '.github/workflows/data-test.yml'
+      - 'tests_yousi/**'
+
+permissions:
+  contents: read
+
+jobs:
+  data-test:
+    if: github.ref == 'refs/heads/yousi-data-test'
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    env:
+      PYTHONUNBUFFERED: '1'
+      MOOTDX_HOME: ${{ runner.temp }}/yousi-mootdx
+    steps:
+      - name: Checkout the triggering test commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Prepare evidence directory
+        run: mkdir -p test_reports
+      - name: Install this checkout of mootdxPlus
+        run: |
+          set -o pipefail
+          python -m pip install . 2>&1 | tee test_reports/install.log
+          python -m pip freeze > test_reports/dependencies.txt
+      - name: Run live historical data tests
+        run: |
+          set -o pipefail
+          python -m tests_yousi.test_data 2>&1 | tee test_reports/run.log
+      - name: Publish test summary
+        if: always()
+        run: |
+          if [ -f test_reports/summary.md ]; then
+            cat test_reports/summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo '酉巳无悔：测试未完成初始化，无采集成功证据。请检查日志。' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Preserve evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: yousi-data-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: test_reports/
+          if-no-files-found: error
+          retention-days: 90
