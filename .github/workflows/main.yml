@@ -1,3 +1,4 @@
+
 name: Test Stock Data
 
 on:
@@ -9,11 +10,15 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
       - name: Install mootdxPlus
         run: pip install "git+https://github.com/BiomancerGame/mootdxPlus.git"
+
       - name: Test stock daily bars
-        run: python -c 'from mootdx.quotes import Quotes; c = Quotes.factory(market="std", multithread=True, heartbeat=True); d = c.bars_all(symbol="600036", frequency=9); print("数据条数:", len(d) if d is not None else 0); print(d)'
+        run: |
+          python -c "from mootdx.quotes import Quotes; c = Quotes.factory(market='std', multithread=True, heartbeat=True); d = c.bars_all(symbol='600036', frequency=9); print('数据条数:', len(d) if d is not None else 0); print(d)"
