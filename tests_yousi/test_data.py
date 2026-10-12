@@ -133,7 +133,7 @@ def install_bar_response_diagnostic():
 
 def main():
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
-    cases = [("daily_10", "bars", 9, None)]  # Minimal single-page diagnostic; no historical bulk fetching.
+    cases = [("daily_1", "bars", 9, None), ("minute_1", "bars", 8, None)]  # One daily and one 1-minute bar; minimal protocol probes.
     commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
     report = {"project": "酉巳无悔", "source": "mootdxPlus", "symbol": SYMBOL,
               "timestamp_utc": utc_now(), "commit": commit,
@@ -186,10 +186,10 @@ def main():
     for name, kind, frequency, date in cases:
         result = report["results"][name]
         result.update(status="RUNNING", request={"symbol": SYMBOL, "frequency": frequency,
-                                                 "date": date, "start": 0, "offset": 10, "mode": "single_page"})
+                                                 "date": date, "start": 0, "offset": 1, "mode": "single_page"})
         save_report(report)
         for number, server in enumerate(SERVERS, start=1):
-            info = {"server": list(server), "started_utc": utc_now(), "stage": "connect", "diagnostic": "single_page_10_bars"}
+            info = {"server": list(server), "started_utc": utc_now(), "stage": "connect", "diagnostic": "single_page_1_bar"}
             started = time.monotonic()
             client = None
             signal.alarm(ATTEMPT_SECONDS)
@@ -200,7 +200,7 @@ def main():
                 info["connected"] = True
                 info["stage"] = "fetch"
                 if kind == "bars":
-                    df = client.bars(symbol=SYMBOL, frequency=frequency, start=0, offset=10)
+                    df = client.bars(symbol=SYMBOL, frequency=frequency, start=0, offset=1)
                 else:
                     df = client.transactions_all(symbol=SYMBOL, date=date, max_pages=200)
                 info["stage"] = "validate"
