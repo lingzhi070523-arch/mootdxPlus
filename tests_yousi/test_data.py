@@ -151,6 +151,26 @@ def main():
         from mootdx.consts import CONFIG
         from mootdx.quotes import Quotes
         install_bar_response_diagnostic()
+        # Diagnostic only: inspect the outgoing request count without altering bytes.
+        request_module = importlib.import_module("tdxpy.parser.std.get_security_bars")
+        for _, request_cls in inspect.getmembers(request_module, inspect.isclass):
+            if request_cls.__module__ != request_module.__name__:
+                continue
+            for method_name in ("setParams", "getRequest", "get_request"):
+                original_method = request_cls.__dict__.get(method_name)
+                if not callable(original_method):
+                    continue
+                def traced_request(self, *args, _orig=original_method, _method=method_name, **kwargs):
+                    result = _orig(self, *args, **kwargs)
+                    print("BAR_REQUEST_DIAGNOSTIC " + json.dumps({
+                        "method": _method,
+                        "args": [repr(x) for x in args],
+                        "kwargs": {k: repr(v) for k, v in kwargs.items()},
+                        "result_length": len(result) if isinstance(result, (bytes, bytearray)) else None,
+                        "result_hex": bytes(result).hex() if isinstance(result, (bytes, bytearray)) else None,
+                    }), flush=True)
+                    return result
+                setattr(request_cls, method_name, traced_request)
         config_file = Path(os.environ["MOOTDX_HOME"]) / "config.json"
         config_file.write_text(json.dumps(CONFIG), encoding="utf-8")
         report["module_path"] = str(Path(mootdx.__file__).resolve())
