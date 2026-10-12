@@ -89,6 +89,14 @@ def inspect_data(df, kind, requested_date, info, pd):
     info["coverage"] = "returned data only; full historical completeness not independently verified"
 
 
+def _exception_chain(exc):
+    seen = set()
+    while exc is not None and id(exc) not in seen:
+        seen.add(id(exc))
+        yield exc
+        exc = exc.__cause__ or exc.__context__
+
+
 def main():
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     cases = [("daily_10", "bars", 9, None)]  # Minimal single-page diagnostic; no historical bulk fetching.
@@ -126,7 +134,7 @@ def main():
                                                  "date": date, "start": 0, "offset": 10, "mode": "single_page"})
         save_report(report)
         for number, server in enumerate(SERVERS, start=1):
-            info = {"server": list(server), "started_utc": utc_now(), "stage": "connect"}
+            info = {"server": list(server), "started_utc": utc_now(), "stage": "connect", "diagnostic": "single_page_10_bars"}
             started = time.monotonic()
             client = None
             signal.alarm(ATTEMPT_SECONDS)
@@ -134,6 +142,7 @@ def main():
             try:
                 client = Quotes.factory(market="std", server=server, bestip=False, timeout=5,
                                         heartbeat=False, auto_retry=False, raise_exception=True)
+                info["connected"] = True
                 info["stage"] = "fetch"
                 if kind == "bars":
                     df = client.bars(symbol=SYMBOL, frequency=frequency, start=0, offset=10)
@@ -148,6 +157,7 @@ def main():
                 info["status"] = "PASS"
             except Exception as exc:
                 info.update(status="FAIL", error=f"{type(exc).__name__}: {exc}",
+                            exception_chain=[{"type": type(e).__name__, "message": str(e)} for e in _exception_chain(exc)],
                             traceback=traceback.format_exc())
             finally:
                 signal.alarm(0)
