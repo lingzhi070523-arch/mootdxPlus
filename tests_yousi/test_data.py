@@ -1,6 +1,9 @@
 """Live source probe; PASS means returned data passed basic checks, not full coverage."""
 
 import hashlib
+import importlib
+import inspect
+import struct
 import json
 import os
 import platform
@@ -97,6 +100,37 @@ def _exception_chain(exc):
         exc = exc.__cause__ or exc.__context__
 
 
+def install_bar_response_diagnostic():
+    """Observe parser input without changing response bytes or parsing behavior."""
+    module = importlib.import_module("tdxpy.parser.std.get_security_bars")
+    patched = []
+    for _, cls in inspect.getmembers(module, inspect.isclass):
+        method = cls.__dict__.get("parseResponse")
+        if method is None or method.__module__ != module.__name__:
+            continue
+        original = method
+
+        def traced(self, body_buf, _original=original, _class=cls.__name__):
+            buf = bytes(body_buf)
+            diagnostic = {"parser_class": _class, "body_length": len(buf),
+                          "prefix_hex": buf[:16].hex(),
+                          "declared_count_le16": struct.unpack("<H", buf[:2])[0] if len(buf) >= 2 else None}
+            print("BAR_RESPONSE_DIAGNOSTIC " + json.dumps(diagnostic), flush=True)
+            try:
+                return _original(self, body_buf)
+            except Exception as exc:
+                print("BAR_PARSE_FAILURE " + json.dumps({
+                    **diagnostic, "exception": type(exc).__name__, "message": str(exc)
+                }), flush=True)
+                raise
+
+        cls.parseResponse = traced
+        patched.append(cls.__name__)
+    print("BAR_DIAGNOSTIC_INSTALLED " + json.dumps(patched), flush=True)
+    if not patched:
+        raise RuntimeError("No bar parser class was instrumented")
+
+
 def main():
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     cases = [("daily_10", "bars", 9, None)]  # Minimal single-page diagnostic; no historical bulk fetching.
@@ -116,6 +150,7 @@ def main():
         import mootdx
         from mootdx.consts import CONFIG
         from mootdx.quotes import Quotes
+        install_bar_response_diagnostic()
         config_file = Path(os.environ["MOOTDX_HOME"]) / "config.json"
         config_file.write_text(json.dumps(CONFIG), encoding="utf-8")
         report["module_path"] = str(Path(mootdx.__file__).resolve())
