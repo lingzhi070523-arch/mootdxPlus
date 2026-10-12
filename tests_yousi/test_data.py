@@ -183,6 +183,40 @@ def main():
         save_report(report)
         return 1
 
+    # Independent implementation control: one bar per frequency on one endpoint.
+    # Never treat a successful independent client as mootdxPlus success.
+    report["independent_pytdx"] = {}
+    try:
+        from pytdx.hq import TdxHq_API as PytdxAPI
+        for label, frequency in (("daily_1", 9), ("minute_1", 8)):
+            probe = {"server": list(SERVERS[0]), "symbol": SYMBOL,
+                     "frequency": frequency, "start": 0, "count": 1}
+            api = PytdxAPI(heartbeat=False, auto_retry=False)
+            try:
+                connected = api.connect(SERVERS[0][0], SERVERS[0][1], time_out=5)
+                probe["connected"] = bool(connected)
+                if not connected:
+                    raise ConnectionError("pytdx connect returned false")
+                bars = api.get_security_bars(frequency, 1, SYMBOL, 0, 1)
+                probe["rows"] = len(bars) if bars is not None else 0
+                probe["sample"] = bars[:1] if bars else []
+                probe["status"] = "PASS" if probe["rows"] == 1 else "FAIL"
+            except Exception as exc:
+                probe.update(status="FAIL", error=f"{type(exc).__name__}: {exc}",
+                             traceback=traceback.format_exc())
+            finally:
+                try:
+                    api.disconnect()
+                except Exception:
+                    pass
+            report["independent_pytdx"][label] = probe
+            print("INDEPENDENT_PYTDX " + json.dumps(probe, ensure_ascii=False, default=str), flush=True)
+            save_report(report)
+    except Exception as exc:
+        report["independent_pytdx"]["setup_error"] = f"{type(exc).__name__}: {exc}"
+        print("INDEPENDENT_PYTDX_SETUP_ERROR " + traceback.format_exc(), flush=True)
+        save_report(report)
+
     for name, kind, frequency, date in cases:
         result = report["results"][name]
         result.update(status="RUNNING", request={"symbol": SYMBOL, "frequency": frequency,
