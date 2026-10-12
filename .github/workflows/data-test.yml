@@ -33,7 +33,7 @@ jobs:
       - name: Install this checkout of mootdxPlus
         run: |
           set -o pipefail
-          python -m pip install . 2>&1 | tee test_reports/install.log
+          python -m pip install . pytdx 2>&1 | tee test_reports/install.log
           python -m pip freeze > test_reports/dependencies.txt
       - name: Run live historical data tests
         run: |
